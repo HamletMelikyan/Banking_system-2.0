@@ -1,13 +1,3 @@
-/*
- * client_tcp.cpp — TCP-клиент банка с раскраской вывода
- *
- * Запуск: ./client_tcp <ip> <port>
- *
- * Использует Painter из colorprint.hpp:
- *   - зелёным: OK, yes, числа (цифры)
- *   - красным:  Ошибка, невозможна, Нет, blocked, no
- */
-
 #include <iostream>
 #include <string>
 #include <cstring>
@@ -45,7 +35,6 @@ int main(int argc, char* argv[]) {
     const char* host = argv[1];
     int         port = std::atoi(argv[2]);
 
-    // ── Подключаемся ──
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) { perror("socket"); return 1; }
 
@@ -64,15 +53,13 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Подключено к " << host << ":" << port << "\n";
 
-    // ── Painter: зелёный = OK / yes / цифры, красный = ошибка / нет / no ──
     Painter painter(
         std::cout,
-        {"OK", "yes", "0","1","2","3","4","5","6","7","8","9"},   // green
+        {"OK", "yes", "0","1","2","3","4","5","6","7","8","9"},  
         {"Ошибка", "невозможна", "Нет", "no", "Некорректн",
-         "Неизвестн", "заблокир", "blocked"}                      // red
+         "Неизвестн", "заблокир", "blocked"} 
     );
 
-    // ── Читаем приветствие от сервера ──
     char rbuf[4096];
     ssize_t n = recv(sock, rbuf, sizeof(rbuf) - 1, 0);
     if (n > 0) {
@@ -85,18 +72,16 @@ int main(int argc, char* argv[]) {
     std::string input;
     while (true) {
         std::cout << "> ";
-        if (!std::getline(std::cin, input)) break;   // EOF
+        if (!std::getline(std::cin, input)) break;   
         if (input.empty()) continue;
 
         if (input == "help") { show_menu(); continue; }
 
-        // Отправляем на сервер
         std::string msg = input + "\n";
         send(sock, msg.c_str(), msg.size(), 0);
 
         if (input == "exit") break;
 
-        // Читаем ответ
         n = recv(sock, rbuf, sizeof(rbuf) - 1, 0);
         if (n <= 0) {
             std::cout << "Сервер закрыл соединение.\n";
@@ -104,7 +89,6 @@ int main(int argc, char* argv[]) {
         }
         rbuf[n] = '\0';
 
-        // Разбиваем по строкам и раскрашиваем каждую
         std::string resp(rbuf);
         std::string line;
         for (char c : resp) {
