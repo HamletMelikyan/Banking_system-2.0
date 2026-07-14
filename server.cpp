@@ -1,17 +1,3 @@
-/*
- * server.cpp — TCP-сервер банка
- *
- * Запуск: ./server <port>
- *
- * Потоки:
- *   - main thread: accept() клиентов, создаёт client_thread на каждого
- *   - client_thread: читает команды от клиента, пишет ответы
- *   - stats_thread: выводит суммарное число запросов каждые 5 запросов
- *
- * Shared memory /transp_bank создаётся shm_init (из задания 1).
- * Сервер только подключается к уже существующей памяти.
- */
-
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -28,9 +14,6 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 
-// ──────────────────────────────────────────────
-// Shared memory layout (must match shm_init.cpp)
-// ──────────────────────────────────────────────
 const char* SHARED_NAME = "/transp_bank";
 
 struct Account {
@@ -43,27 +26,20 @@ struct Account {
 struct BankData {
     pthread_mutex_t mutex;
     int             count;
-    Account         list[1];   // flexible array trick
+    Account         list[1]; 
 };
 
-// ──────────────────────────────────────────────
-// Global state
-// ──────────────────────────────────────────────
 BankData*       g_bank     = nullptr;
 size_t          g_shm_size = 0;
 
-// stats
 pthread_mutex_t g_stats_mtx  = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t  g_stats_cond = PTHREAD_COND_INITIALIZER;
-long long       g_req_count  = 0;   // total processed requests
-long long       g_last_print = 0;   // last printed threshold
+long long       g_req_count  = 0;  
+long long       g_last_print = 0;
 
 volatile bool   g_shutdown   = false;
-int             g_server_fd  = -1;  // server socket (для закрытия при shutdown)
+int             g_server_fd  = -1;
 
-// ──────────────────────────────────────────────
-// Stats thread: выводит число запросов каждые 5
-// ──────────────────────────────────────────────
 void* stats_thread(void*) {
     pthread_mutex_lock(&g_stats_mtx);
     while (!g_shutdown) {
@@ -78,9 +54,6 @@ void* stats_thread(void*) {
     return nullptr;
 }
 
-// ──────────────────────────────────────────────
-// Increment request counter and signal stats
-// ──────────────────────────────────────────────
 void count_request() {
     pthread_mutex_lock(&g_stats_mtx);
     ++g_req_count;
@@ -88,17 +61,11 @@ void count_request() {
     pthread_mutex_unlock(&g_stats_mtx);
 }
 
-// ──────────────────────────────────────────────
-// Send a response line to client
-// ──────────────────────────────────────────────
 static void send_line(int fd, const std::string& msg) {
     std::string out = msg + "\n";
     send(fd, out.c_str(), out.size(), 0);
 }
 
-// ──────────────────────────────────────────────
-// Command processing (same logic as client.cpp)
-// ──────────────────────────────────────────────
 static bool check_id(int id) {
     return id >= 0 && id < g_bank->count;
 }
@@ -111,7 +78,6 @@ static void process_command(int client_fd, const std::string& input) {
     if (cmd == "shutdown") {
         send_line(client_fd, "Сервер завершает работу...");
         g_shutdown = true;
-        // Wake stats thread so it can exit
         pthread_mutex_lock(&g_stats_mtx);
         pthread_cond_signal(&g_stats_cond);
         pthread_mutex_unlock(&g_stats_mtx);
@@ -217,9 +183,6 @@ static void process_command(int client_fd, const std::string& input) {
     }
 }
 
-// ──────────────────────────────────────────────
-// Per-client thread
-// ──────────────────────────────────────────────
 struct ClientArgs {
     int fd;
     struct sockaddr_in addr;
@@ -243,7 +206,6 @@ void* client_thread(void* arg) {
         if (n <= 0) break;
 
         buf[n] = '\0';
-        // Strip trailing \r\n
         std::string line(buf);
         while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
             line.pop_back();
@@ -265,9 +227,6 @@ void* client_thread(void* arg) {
     return nullptr;
 }
 
-// ──────────────────────────────────────────────
-// main
-// ──────────────────────────────────────────────
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Запуск: " << argv[0] << " <port>\n";
@@ -275,7 +234,6 @@ int main(int argc, char* argv[]) {
     }
     int port = std::atoi(argv[1]);
 
-    // ── Подключаемся к shared memory ──
     int shm_fd = shm_open(SHARED_NAME, O_RDWR, 0);
     if (shm_fd < 0) { perror("shm_open"); return 1; }
 
@@ -290,11 +248,9 @@ int main(int argc, char* argv[]) {
     g_bank = (BankData*)mem;
     std::cout << "[server] Shared memory подключена. Счетов: " << g_bank->count << "\n";
 
-    // ── Запускаем stats thread ──
     pthread_t stats_tid;
     pthread_create(&stats_tid, nullptr, stats_thread, nullptr);
 
-    // ── Создаём серверный сокет ──
     g_server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (g_server_fd < 0) { perror("socket"); return 1; }
 
@@ -311,7 +267,6 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[server] Слушаем порт " << port << "\n";
 
-    // ── Accept loop ──
     while (!g_shutdown) {
         sockaddr_in client_addr{};
         socklen_t   client_len = sizeof(client_addr);
@@ -332,7 +287,6 @@ int main(int argc, char* argv[]) {
         pthread_attr_destroy(&attr);
     }
 
-    // ── Cleanup ──
     std::cout << "[server] Завершение работы.\n";
 
     pthread_mutex_lock(&g_stats_mtx);
