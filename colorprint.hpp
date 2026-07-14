@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 
-// ANSI color codes
 #define COLOR_GREEN  "\033[32m"
 #define COLOR_RED    "\033[31m"
 #define COLOR_RESET  "\033[0m"
@@ -16,7 +15,6 @@ public:
         : out_(out), green_(green_words), red_(red_words) {}
 
     void print(const std::string& line) {
-        // Tokenize and colorize word by word
         std::string result;
         std::string token;
         size_t i = 0;
@@ -47,7 +45,6 @@ public:
         out_ << result << "\n";
     }
 
-    // Stream-like interface
     Painter& operator<<(const std::string& line) {
         print(line);
         return *this;
